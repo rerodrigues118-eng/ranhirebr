@@ -30,6 +30,9 @@ const HeroParallaxImage = ({
   const [imageError, setImageError] = useState(false);
   const [loadedFrames, setLoadedFrames] = useState<Set<number>>(new Set());
 
+  // Derive current image path from frame index to avoid synchronous setState in effects
+  const imageSrc = imageError ? '/inicio.jpg' : getFramePath(currentFrameIndex);
+
   /**
    * Gera caminho da imagem para um frame específico
    * Frames estão em /fotos-site/ezgif-frame-XXX.jpg
@@ -81,9 +84,7 @@ const HeroParallaxImage = ({
   useEffect(() => {
     if (!isVisible) return;
     
-    const newSrc = getFramePath(currentFrameIndex);
-    setImageSrc(newSrc);
-    setImageError(false);
+    // imageSrc is derived from currentFrameIndex; imageError stays managed by onError
   }, [currentFrameIndex, isVisible]);
 
   /**
@@ -96,7 +97,6 @@ const HeroParallaxImage = ({
    */
   const handleImageError = () => {
     setImageError(true);
-    setImageSrc('/inicio.jpg');
   };
 
   if (!imageSrc) {

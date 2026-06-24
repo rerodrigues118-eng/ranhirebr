@@ -1,12 +1,8 @@
 import { Queue } from "bullmq";
-
-// Forçar carregamento do .env antes da inicialização
-require("dotenv").config();
+import 'dotenv/config';
 
 /**
- * Parseia a REDIS_URL (ex: rediss://user:pass@host:6379)
- * e retorna um objeto de opções compatível com o ioredis
- * INTERNO do BullMQ — evitando conflito de versões.
+ * Parseia uma REDIS_URL e retorna opções compatíveis com ioredis.
  */
 function parseRedisUrl(url: string) {
   const u = new URL(url);
@@ -22,9 +18,28 @@ function parseRedisUrl(url: string) {
   };
 }
 
-export const redisConnection = parseRedisUrl(process.env.REDIS_URL!);
+let redisConnection: any = undefined;
+let pdfQueue: any = undefined;
 
-// Fila BullMQ Producer
-export const pdfQueue = new Queue("pdf-processing", {
-  connection: redisConnection,
-});
+if (process.env.REDIS_URL) {
+  try {
+    redisConnection = parseRedisUrl(process.env.REDIS_URL);
+    pdfQueue = new Queue("pdf-processing", { connection: redisConnection });
+  } catch (err) {
+    // Se parse falhar, mantemos stubs para evitar quebrar o build em ambientes sem REDIS_URL
+    redisConnection = undefined;
+    pdfQueue = {
+      add: async () => { throw new Error('Redis not configured'); },
+      addBulk: async () => { throw new Error('Redis not configured'); },
+    } as unknown as Queue;
+  }
+} else {
+  // Ambiente sem REDIS configurado (p.ex. build do Vercel) — expõe stubs seguros
+  redisConnection = undefined;
+  pdfQueue = {
+    add: async () => { throw new Error('Redis not configured'); },
+    addBulk: async () => { throw new Error('Redis not configured'); },
+  } as unknown as Queue;
+}
+
+export { redisConnection, pdfQueue };

@@ -4,7 +4,7 @@ import { redisConnection } from "../lib/queue";
 import { buildScoringPrompt } from "../lib/scoring-prompt";
 import { createClient } from "@supabase/supabase-js";
 import { Job, Worker } from "bullmq";
-require("dotenv").config();
+import 'dotenv/config';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

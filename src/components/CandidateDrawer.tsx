@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import type { Candidate, KanbanStatus } from "@/lib/types";
 import { getAvatarBg } from "@/lib/mock-data";
 import {
@@ -26,6 +26,90 @@ interface CandidateDrawerProps {
 }
 
 type ToastType = "success" | "error";
+
+interface EditableFieldProps {
+  label: string;
+  icon: LucideIcon;
+  fieldKey: keyof Candidate;
+  value?: string;
+  isTextArea?: boolean;
+  editingField: string | null;
+  editValue: string;
+  savingField: string | null;
+  onChangeEditValue: (value: string) => void;
+  onStartEdit: (field: keyof Candidate, value: string) => void;
+  onCancelEdit: () => void;
+  onSaveField: (field: keyof Candidate) => void;
+}
+
+function EditableField({
+  label,
+  icon: Icon,
+  fieldKey,
+  value,
+  isTextArea = false,
+  editingField,
+  editValue,
+  savingField,
+  onChangeEditValue,
+  onStartEdit,
+  onCancelEdit,
+  onSaveField,
+}: EditableFieldProps) {
+  const isEditing = editingField === fieldKey;
+  const isSaving = savingField === String(fieldKey);
+
+  return (
+    <div className="flex flex-col gap-1.5 mb-4 group">
+      <span className="text-xs text-gray-500 font-medium flex items-center gap-1.5">
+        <Icon className="w-3.5 h-3.5" /> {label}
+      </span>
+      {isEditing ? (
+        <div className="flex flex-col gap-2">
+          {isTextArea ? (
+            <textarea
+              autoFocus
+              value={editValue}
+              onChange={(e) => onChangeEditValue(e.target.value)}
+              className="text-sm text-gray-900 border border-blue-500 rounded px-2 py-1 outline-none w-full min-h-[80px]"
+              onKeyDown={(e) => { if (e.key === "Enter" && e.ctrlKey) onSaveField(fieldKey); }}
+            />
+          ) : (
+            <input
+              autoFocus
+              type="text"
+              value={editValue}
+              onChange={(e) => onChangeEditValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") onSaveField(fieldKey); }}
+              className="text-sm text-gray-900 border border-blue-500 rounded px-2 py-1 outline-none w-full"
+            />
+          )}
+          <div className="flex gap-2">
+            <button
+              onClick={() => onSaveField(fieldKey)}
+              disabled={isSaving}
+              className="text-xs bg-blue-600 text-white px-2 py-1 rounded flex items-center gap-1 disabled:opacity-60"
+            >
+              {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+              Salvar
+            </button>
+            <button onClick={onCancelEdit} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div
+          className="text-sm text-gray-900 min-h-[20px] cursor-pointer border border-transparent hover:border-gray-200 hover:bg-gray-50 rounded p-1 -ml-1 flex justify-between items-start"
+          onClick={() => onStartEdit(fieldKey, value || "")}
+        >
+          <span className={!value ? "text-gray-400 italic" : ""}>{value || "Clique para adicionar"}</span>
+          <Edit2 className="w-3.5 h-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function CandidateDrawer({
   isOpen,
@@ -65,6 +149,7 @@ export default function CandidateDrawer({
   // Toast
   const [toast, setToast] = useState<{ type: ToastType; message: string } | null>(null);
   const toastTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const candidateRafRef = useRef<number | null>(null);
 
   const handleExportPdf = async () => {
     if (!localCandidate || isExporting) return;
@@ -100,13 +185,27 @@ export default function CandidateDrawer({
   };
 
   useEffect(() => {
-    if (candidate) {
+    if (candidateRafRef.current !== null) {
+      cancelAnimationFrame(candidateRafRef.current);
+    }
+
+    if (!candidate) {
+      // schedule clearing localCandidate to avoid synchronous setState in effect
+      candidateRafRef.current = requestAnimationFrame(() => setLocalCandidate(null));
+      return;
+    }
+
+    candidateRafRef.current = requestAnimationFrame(() => {
       setLocalCandidate({ ...candidate });
       setEditingField(null);
       setEditingScoreIndex(null);
       setShowRawText(false);
       setSelectedEtiquetaId(candidate.etiqueta?.id ?? null);
-    }
+    });
+
+    return () => {
+      if (candidateRafRef.current !== null) cancelAnimationFrame(candidateRafRef.current);
+    };
   }, [candidate]);
 
   const showToast = useCallback((type: ToastType, message: string) => {
@@ -246,6 +345,15 @@ export default function CandidateDrawer({
     }
   };
 
+  const handleStartEdit = (field: keyof Candidate, value: string) => {
+    setEditValue(value);
+    setEditingField(String(field));
+  };
+
+  const handleCancelEdit = () => {
+    setEditingField(null);
+  };
+
   /* ── Rescore via IA (Groq) ────────────────────────────── */
   const handleRescore = async () => {
     if (!localCandidate || isRescoring) return;
@@ -297,76 +405,7 @@ export default function CandidateDrawer({
 
   const compatibility = getCompatibilityLabel(localCandidate.score);
 
-  /* ── Editable Field Component ─────────────────────────── */
-  const EditableField = ({
-    label,
-    icon: Icon,
-    fieldKey,
-    value,
-    isTextArea = false,
-  }: {
-    label: string;
-    icon: LucideIcon;
-    fieldKey: keyof Candidate;
-    value?: string;
-    isTextArea?: boolean;
-  }) => {
-    const isEditing = editingField === fieldKey;
-    const isSaving = savingField === String(fieldKey);
-    return (
-      <div className="flex flex-col gap-1.5 mb-4 group">
-        <span className="text-xs text-gray-500 font-medium flex items-center gap-1.5">
-          <Icon className="w-3.5 h-3.5" /> {label}
-        </span>
-        {isEditing ? (
-          <div className="flex flex-col gap-2">
-            {isTextArea ? (
-              <textarea
-                autoFocus
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                className="text-sm text-gray-900 border border-blue-500 rounded px-2 py-1 outline-none w-full min-h-[80px]"
-                onKeyDown={(e) => { if (e.key === "Enter" && e.ctrlKey) handleSaveField(fieldKey); }}
-              />
-            ) : (
-              <input
-                autoFocus
-                type="text"
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") handleSaveField(fieldKey); }}
-                className="text-sm text-gray-900 border border-blue-500 rounded px-2 py-1 outline-none w-full"
-              />
-            )}
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleSaveField(fieldKey)}
-                disabled={isSaving}
-                className="text-xs bg-blue-600 text-white px-2 py-1 rounded flex items-center gap-1 disabled:opacity-60"
-              >
-                {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-                Salvar
-              </button>
-              <button onClick={() => setEditingField(null)} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                Cancelar
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div
-            className="text-sm text-gray-900 min-h-[20px] cursor-pointer border border-transparent hover:border-gray-200 hover:bg-gray-50 rounded p-1 -ml-1 flex justify-between items-start"
-            onClick={() => {
-              setEditValue(value || "");
-              setEditingField(fieldKey as string);
-            }}
-          >
-            <span className={!value ? "text-gray-400 italic" : ""}>{value || "Clique para adicionar"}</span>
-            <Edit2 className="w-3.5 h-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
-          </div>
-        )}
-      </div>
-    );
-  };
+  
 
   return (
     <>
@@ -661,12 +700,24 @@ export default function CandidateDrawer({
             </h3>
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
               <div className="grid grid-cols-2 gap-x-8 gap-y-2">
-                <EditableField label="Email de contato" icon={Mail} fieldKey="email" value={localCandidate.email} />
-                <EditableField label="Telefone" icon={Phone} fieldKey="phone" value={localCandidate.phone} />
-                <EditableField label="LinkedIn URL" icon={LinkIcon} fieldKey="linkedinUrl" value={localCandidate.linkedinUrl} />
-                <EditableField label="Pretensão salarial" icon={CircleDollarSign} fieldKey="pretensaoSalarial" value={localCandidate.pretensaoSalarial} />
-                <EditableField label="Disponibilidade" icon={Calendar} fieldKey="disponibilidade" value={localCandidate.disponibilidade} />
-                <EditableField label="Regime preferido" icon={Briefcase} fieldKey="regime" value={localCandidate.regime} />
+                <EditableField label="Email de contato" icon={Mail} fieldKey="email" value={localCandidate.email}
+                  editingField={editingField} editValue={editValue} savingField={savingField}
+                  onChangeEditValue={setEditValue} onStartEdit={handleStartEdit} onCancelEdit={handleCancelEdit} onSaveField={handleSaveField} />
+                <EditableField label="Telefone" icon={Phone} fieldKey="phone" value={localCandidate.phone}
+                  editingField={editingField} editValue={editValue} savingField={savingField}
+                  onChangeEditValue={setEditValue} onStartEdit={handleStartEdit} onCancelEdit={handleCancelEdit} onSaveField={handleSaveField} />
+                <EditableField label="LinkedIn URL" icon={LinkIcon} fieldKey="linkedinUrl" value={localCandidate.linkedinUrl}
+                  editingField={editingField} editValue={editValue} savingField={savingField}
+                  onChangeEditValue={setEditValue} onStartEdit={handleStartEdit} onCancelEdit={handleCancelEdit} onSaveField={handleSaveField} />
+                <EditableField label="Pretensão salarial" icon={CircleDollarSign} fieldKey="pretensaoSalarial" value={localCandidate.pretensaoSalarial}
+                  editingField={editingField} editValue={editValue} savingField={savingField}
+                  onChangeEditValue={setEditValue} onStartEdit={handleStartEdit} onCancelEdit={handleCancelEdit} onSaveField={handleSaveField} />
+                <EditableField label="Disponibilidade" icon={Calendar} fieldKey="disponibilidade" value={localCandidate.disponibilidade}
+                  editingField={editingField} editValue={editValue} savingField={savingField}
+                  onChangeEditValue={setEditValue} onStartEdit={handleStartEdit} onCancelEdit={handleCancelEdit} onSaveField={handleSaveField} />
+                <EditableField label="Regime preferido" icon={Briefcase} fieldKey="regime" value={localCandidate.regime}
+                  editingField={editingField} editValue={editValue} savingField={savingField}
+                  onChangeEditValue={setEditValue} onStartEdit={handleStartEdit} onCancelEdit={handleCancelEdit} onSaveField={handleSaveField} />
               </div>
               {localCandidate.aiSummary && (
                 <div className="mt-4 pt-4 border-t border-gray-100">
@@ -685,6 +736,13 @@ export default function CandidateDrawer({
                   fieldKey="observacoes"
                   value={localCandidate.observacoes}
                   isTextArea={true}
+                  editingField={editingField}
+                  editValue={editValue}
+                  savingField={savingField}
+                  onChangeEditValue={setEditValue}
+                  onStartEdit={handleStartEdit}
+                  onCancelEdit={handleCancelEdit}
+                  onSaveField={handleSaveField}
                 />
               </div>
             </div>

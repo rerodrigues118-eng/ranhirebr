@@ -23,6 +23,8 @@ const useParallaxScroll = (containerRef?: RefObject<HTMLDivElement>): UseParalla
   const [progress, setProgress] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const prefersReducedMotionRef = useRef(prefersReducedMotion);
+  const rafRef = useRef<number | null>(null);
 
   // Usar containerRef externo se fornecido, caso contrário manter ref local
   useEffect(() => {
@@ -40,9 +42,11 @@ const useParallaxScroll = (containerRef?: RefObject<HTMLDivElement>): UseParalla
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     setPrefersReducedMotion(mediaQuery.matches);
+    prefersReducedMotionRef.current = mediaQuery.matches;
 
     const handleChange = (e: MediaQueryListEvent) => {
       setPrefersReducedMotion(e.matches);
+      prefersReducedMotionRef.current = e.matches;
     };
 
     mediaQuery.addEventListener('change', handleChange);
@@ -51,23 +55,33 @@ const useParallaxScroll = (containerRef?: RefObject<HTMLDivElement>): UseParalla
 
   // Monitora mudanças no scrollYProgress
   useMotionValueEvent(scrollYProgress, 'change', (latest) => {
-    if (prefersReducedMotion) {
-      setFrameIndex(latest > 0.5 ? 45 : 0);
-      setProgress(0);
-      setIsVisible(true);
-      return;
-    }
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
 
-    // Calcular frame baseado no progresso de scroll (0-45 = 46 frames)
-    const rawFrame = latest * 45;
-    const calculatedFrameIndex = Math.floor(rawFrame);
-    const interpolatedProgress = rawFrame - calculatedFrameIndex;
-    const clampedFrame = Math.min(Math.max(calculatedFrameIndex, 0), 45);
-    
-    setFrameIndex(clampedFrame);
-    setProgress(interpolatedProgress);
-    setIsVisible(latest > 0);
+    rafRef.current = requestAnimationFrame(() => {
+      if (prefersReducedMotionRef.current) {
+        setFrameIndex(latest > 0.5 ? 45 : 0);
+        setProgress(0);
+        setIsVisible(true);
+        return;
+      }
+
+      // Calcular frame baseado no progresso de scroll (0-45 = 46 frames)
+      const rawFrame = latest * 45;
+      const calculatedFrameIndex = Math.floor(rawFrame);
+      const interpolatedProgress = rawFrame - calculatedFrameIndex;
+      const clampedFrame = Math.min(Math.max(calculatedFrameIndex, 0), 45);
+
+      setFrameIndex(clampedFrame);
+      setProgress(interpolatedProgress);
+      setIsVisible(latest > 0);
+    });
   });
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
 
   // Detectar se hero está na viewport usando Intersection Observer
   useEffect(() => {

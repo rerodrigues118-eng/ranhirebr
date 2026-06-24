@@ -118,7 +118,6 @@ export default function PdfRankerPage({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, activeJob?.id]);
-
   const fetchCriteria = async () => {
     setIsLoadingCriteria(true);
     try {

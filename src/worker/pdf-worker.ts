@@ -1,5 +1,4 @@
-import dotenv from "dotenv";
-dotenv.config();
+import 'dotenv/config';
 
 import { fetchWithTimeout } from "../lib/api";
 import { callAI } from "../lib/ai-client";
@@ -8,7 +7,7 @@ import { buildScoringPrompt } from "../lib/scoring-prompt";
 import { createClient } from "@supabase/supabase-js";
 import { Job, Worker } from "bullmq";
 
-const pdfParse = require("pdf-parse");
+import pdfParse from 'pdf-parse';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

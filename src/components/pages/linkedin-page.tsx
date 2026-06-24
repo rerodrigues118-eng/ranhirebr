@@ -91,6 +91,27 @@ function hasActiveFilters(filters: Record<string, unknown>): boolean {
   });
 }
 
+function FilterButton({ size = 'md', activeFilters, onOpen }: { size?: 'sm' | 'md'; activeFilters: Record<string, unknown>; onOpen: () => void }) {
+  const active = hasActiveFilters(activeFilters);
+  const sm = size === 'sm';
+  return (
+    <button
+      onClick={onOpen}
+      className={`flex items-center gap-2 border rounded-xl font-medium transition-all
+        ${active ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700'}
+        ${sm ? 'px-2.5 py-1.5 text-[11px]' : 'px-3 py-2 text-[12px]'}`}
+    >
+      <SlidersHorizontal className={sm ? 'w-3 h-3' : 'w-3.5 h-3.5'} />
+      Filtros avançados
+      {active && (
+        <span className="w-4 h-4 rounded-full bg-indigo-600 text-white text-[9px] font-bold flex items-center justify-center flex-shrink-0">
+          ✓
+        </span>
+      )}
+    </button>
+  );
+}
+
 export default function LinkedinPage({ activeJob, onImportCandidate }: LinkedinPageProps) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -483,8 +504,8 @@ export default function LinkedinPage({ activeJob, onImportCandidate }: LinkedinP
             rows={3}
             className="w-full resize-none bg-transparent px-6 pt-5 pb-3 text-[15px] leading-relaxed text-gray-900 outline-none placeholder:text-gray-400"
           />
-          <div className="flex items-center justify-between border-t border-gray-100/80 bg-gradient-to-r from-gray-50/80 via-white to-gray-50/80 px-4 py-3">
-            <FilterButton />
+            <div className="flex items-center justify-between border-t border-gray-100/80 bg-gradient-to-r from-gray-50/80 via-white to-gray-50/80 px-4 py-3">
+            <FilterButton activeFilters={activeFilters} onOpen={() => setIsFiltersOpen(true)} />
             <button
               onClick={handleSubmit}
               disabled={!input.trim()}
@@ -549,8 +570,8 @@ export default function LinkedinPage({ activeJob, onImportCandidate }: LinkedinP
               disabled={isAnalyzing || isSearching}
               className="w-full px-4 pt-3 pb-2 text-[14px] text-gray-900 resize-none outline-none placeholder:text-gray-400 bg-transparent leading-relaxed disabled:opacity-50"
             />
-            <div className="flex items-center justify-between px-3 pb-2.5 border-t border-gray-100 pt-2">
-              <FilterButton size="sm" />
+              <div className="flex items-center justify-between px-3 pb-2.5 border-t border-gray-100 pt-2">
+              <FilterButton size="sm" activeFilters={activeFilters} onOpen={() => setIsFiltersOpen(true)} />
               <button
                 onClick={handleSubmit}
                 disabled={!input.trim() || isAnalyzing || isSearching}

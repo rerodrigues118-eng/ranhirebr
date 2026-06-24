@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { AlertTriangle, Clock, Mail, CalendarPlus, Search, CheckSquare } from "lucide-react";
 
 export default function AdminTrialsPage() {

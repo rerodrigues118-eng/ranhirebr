@@ -4,9 +4,14 @@ import { redisConnection } from "@/lib/queue";
 import { Queue } from "bullmq";
 import { NextResponse } from "next/server";
 
-const enrichmentQueue = new Queue("linkedin-enrichment", {
-  connection: redisConnection,
-});
+let enrichmentQueue: any;
+if (redisConnection) {
+  enrichmentQueue = new Queue("linkedin-enrichment", { connection: redisConnection });
+} else {
+  enrichmentQueue = {
+    add: async () => { throw new Error("Redis nao configurado; fila indisponivel em ambiente de build"); },
+  } as unknown as Queue;
+}
 
 export async function POST(req: Request) {
   try {

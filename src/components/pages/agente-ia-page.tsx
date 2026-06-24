@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { ArrowRight, Bell, Bot, Calendar, CheckCircle2, Clock3, Mail, PlayCircle, Search, Settings, Sparkles, Target, ThumbsDown, ThumbsUp, TrendingUp, UserPlus } from "lucide-react";
 // @ts-expect-error - lucide-react subpath export has no TS declarations
 import ShieldCheck from "lucide-react/dist/esm/icons/shield-check";
@@ -435,6 +435,7 @@ export default function AgenteIAPage() {
   const [createdAgent, setCreatedAgent] = useState<Agent | null>(null);
   const [workflowStep, setWorkflowStep] = useState<1 | 2 | 3>(1);
   const [calibrationIndex, setCalibrationIndex] = useState(0);
+  const workflowRafRef = useRef<number | null>(null);
   const [calibrationDecisions, setCalibrationDecisions] = useState<CalibrationAnswer[]>([]);
   const [isSavingCalibration, setIsSavingCalibration] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
@@ -526,8 +527,10 @@ export default function AgenteIAPage() {
   useEffect(() => {
     if (workflowStep !== 2) return;
     if (calibrationIndex >= calibrationProfiles.length) {
-      setWorkflowStep(3);
+      if (workflowRafRef.current !== null) cancelAnimationFrame(workflowRafRef.current);
+      workflowRafRef.current = requestAnimationFrame(() => setWorkflowStep(3));
     }
+    return () => { if (workflowRafRef.current !== null) cancelAnimationFrame(workflowRafRef.current); };
   }, [workflowStep, calibrationIndex, calibrationProfiles.length]);
 
   const generatedCriteria = useMemo<AgentCriterion[]>(() => {

@@ -26,6 +26,8 @@ const usePinnedScroll = (containerRef?: RefObject<HTMLDivElement>): UsePinnedScr
   const [isPinned, setIsPinned] = useState(false);
   const [pinProgress, setPinProgress] = useState(0);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const prefersReducedMotionRef = useRef(prefersReducedMotion);
+  const rafRef = useRef<number | null>(null);
 
   // Sync external ref to local ref if provided
   useEffect(() => {
@@ -43,9 +45,11 @@ const usePinnedScroll = (containerRef?: RefObject<HTMLDivElement>): UsePinnedScr
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     setPrefersReducedMotion(mediaQuery.matches);
+    prefersReducedMotionRef.current = mediaQuery.matches;
 
     const handleChange = (e: MediaQueryListEvent) => {
       setPrefersReducedMotion(e.matches);
+      prefersReducedMotionRef.current = e.matches;
     };
 
     mediaQuery.addEventListener('change', handleChange);
@@ -54,48 +58,58 @@ const usePinnedScroll = (containerRef?: RefObject<HTMLDivElement>): UsePinnedScr
 
   // Monitora mudanças no scrollYProgress
   useMotionValueEvent(scrollYProgress, 'change', (latest) => {
-    if (prefersReducedMotion) {
-      setFrameIndex(latest > 0.5 ? 45 : 0);
-      setProgress(0);
-      setIsVisible(true);
-      setIsPinned(false);
-      setPinProgress(0);
-      return;
-    }
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
 
-    // Animação ocorre entre 0-0.8 do scroll total
-    // 0.8-1.0 é para "unpinning" e volta ao normal
-    const ANIMATION_END = 0.8;
-    
-    let calcFrameIndex = 0;
-    let calcProgress = 0;
-    let isPinnedNow = false;
-    let calcPinProgress = 0;
+    rafRef.current = requestAnimationFrame(() => {
+      if (prefersReducedMotionRef.current) {
+        setFrameIndex(latest > 0.5 ? 45 : 0);
+        setProgress(0);
+        setIsVisible(true);
+        setIsPinned(false);
+        setPinProgress(0);
+        return;
+      }
 
-    if (latest <= ANIMATION_END) {
-      // Durante animação: calculamos o frame baseado no scroll
-      isPinnedNow = true;
-      calcPinProgress = latest / ANIMATION_END;
+      // Animação ocorre entre 0-0.8 do scroll total
+      // 0.8-1.0 é para "unpinning" e volta ao normal
+      const ANIMATION_END = 0.8;
       
-      const rawFrame = calcPinProgress * 45;
-      calcFrameIndex = Math.floor(rawFrame);
-      calcProgress = rawFrame - calcFrameIndex;
-      
-      calcFrameIndex = Math.min(Math.max(calcFrameIndex, 0), 45);
-    } else {
-      // Após animação: deixa de pinnar e volta ao normal
-      isPinnedNow = false;
-      calcPinProgress = 1;
-      calcFrameIndex = 45; // Fica no último frame
-      calcProgress = 0;
-    }
+      let calcFrameIndex = 0;
+      let calcProgress = 0;
+      let isPinnedNow = false;
+      let calcPinProgress = 0;
 
-    setFrameIndex(calcFrameIndex);
-    setProgress(calcProgress);
-    setIsVisible(latest > 0);
-    setIsPinned(isPinnedNow);
-    setPinProgress(calcPinProgress);
+      if (latest <= ANIMATION_END) {
+        // Durante animação: calculamos o frame baseado no scroll
+        isPinnedNow = true;
+        calcPinProgress = latest / ANIMATION_END;
+        
+        const rawFrame = calcPinProgress * 45;
+        calcFrameIndex = Math.floor(rawFrame);
+        calcProgress = rawFrame - calcFrameIndex;
+        
+        calcFrameIndex = Math.min(Math.max(calcFrameIndex, 0), 45);
+      } else {
+        // Após animação: deixa de pinnar e volta ao normal
+        isPinnedNow = false;
+        calcPinProgress = 1;
+        calcFrameIndex = 45; // Fica no último frame
+        calcProgress = 0;
+      }
+
+      setFrameIndex(calcFrameIndex);
+      setProgress(calcProgress);
+      setIsVisible(latest > 0);
+      setIsPinned(isPinnedNow);
+      setPinProgress(calcPinProgress);
+    });
   });
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
 
   // Detectar se hero está na viewport
   useEffect(() => {
