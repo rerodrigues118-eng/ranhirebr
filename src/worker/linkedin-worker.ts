@@ -34,7 +34,7 @@ async function fetchLinkedinProfile(linkedinUrl: string, candidateName?: string)
   }
 
   const apifyRes = await fetchWithTimeout(
-    `https://api.apify.com/v2/acts/rock_star_scraper~linkedin-profile-scraper/runs?token=${apifyToken}`,
+    `https://api.apify.com/v2/acts/johnvc~linkedin-profile-api/runs?token=${apifyToken}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
